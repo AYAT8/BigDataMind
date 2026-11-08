@@ -7,7 +7,7 @@ Milestones are completed in order and committed individually.
 | 1.1 | Environment setup | Done |
 | 1.2 | Download one month of source data | Done |
 | 1.3 | Explore data and list quality problems | Done |
-| 2.1 | Bronze ingestion | Next |
+| 2.1 | Bronze ingestion | Done |
 | 2.2 | Silver cleaning, rules, and tests | Not started |
 | 2.3 | Gold aggregations (six tables) | Not started |
 | 2.4 | Airflow orchestration and quality gate | Not started |

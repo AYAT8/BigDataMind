@@ -32,3 +32,27 @@ Re-run the profile from the repository root with:
 
 The script logs its findings and reads only `data/raw/`; it does not write or alter
 the source data.
+
+## Milestone 2.1 — Bronze ingestion
+
+- Added `spark/config.py` with data-layer paths derived from `DATA_ROOT`, defaulting
+  to the project `data/` directory and allowing `BDM_DATA_ROOT` to override it.
+- Added `spark/session.py` with the shared local Spark configuration, including
+  eight shuffle partitions, 4 GB driver memory, and dynamic partition overwrite.
+- Added `spark/ingestion.py` and the command
+  `.venv/bin/python -m spark.ingestion --year 2024 --month 1`. It reads each source
+  Parquet without changing its source columns, attaches `ingestion_ts`,
+  `source_file`, and file-derived `source_month`, then writes partitioned Parquet
+  to `data/bronze/yellow_trips/`.
+- Added five focused ingestion tests and declared `pytest` in `requirements.txt`.
+- January source and Bronze counts both verified at 2,964,624 on two consecutive
+  ingestion runs. The partition `source_month=2024-01` exists with three Parquet
+  part files.
+- All 18 pickups outside January are still present in Bronze. The source schema's
+  19 columns remain first and unchanged; the only additional columns are the three
+  traceability fields. The January file's schema matched the exploration baseline.
+- Pytest result: 5 passed. Raw Parquet and zone CSV sizes and modification times
+  matched their pre-ingestion values.
+- Bronze does not clean, filter, deduplicate, fill nulls, or cast source fields.
+  Decisions about negative amounts, `payment_type=0`, unusual distances, and
+  out-of-month pickups remain for Silver.

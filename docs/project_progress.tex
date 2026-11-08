@@ -1,0 +1,148 @@
+\documentclass[11pt,a4paper]{article}
+
+\usepackage[margin=1in]{geometry}
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage{hyperref}
+\usepackage{longtable}
+
+\title{BigDataMind Project Progress Log}
+\author{Project journal}
+\date{Last updated: 8 November 2026}
+
+\begin{document}
+\maketitle
+
+\section*{Purpose}
+This document is the running record of project progress. Each time project work
+is authorized and performed, add a dated entry describing the changes made,
+the findings, and how the work was verified. Do not treat this log as
+authorization to begin a new implementation milestone.
+
+\section{Project overview}
+BigDataMind is a planned analytics assistant for public NYC TLC yellow taxi
+trip data. The intended pipeline uses Spark and a Medallion architecture:
+unchanged raw inputs, Bronze ingestion, cleaned Silver data, and aggregated Gold
+tables. Future milestones cover orchestration, a guarded LLM question-answering
+layer, a backend, a frontend, and evaluation. Spark is responsible for data
+calculations; an LLM is not to invent or calculate result values.
+
+\section{Progress entries}
+
+\subsection{8 November 2026 --- Environment and initial project setup}
+\textbf{Reported status:} The developer completed WSL2 Ubuntu, Git, and virtual
+environment configuration. A project data directory is linked to
+\texttt{/mnt/d/BigDataMind-data}, keeping the large raw inputs on the D: drive.
+This setup was reported by the developer and was not reconfigured during the
+work recorded here.
+
+\textbf{Changes:} No project code changes are recorded for this setup stage.
+
+\textbf{Findings:} The repository is organized for the planned Spark, LLM,
+backend, frontend, notebooks, tests, and documentation work. At the start of
+the recorded project implementation, the tracked Spark implementation
+consisted of a small Spark smoke-test script; the planned Bronze ingestion
+module was not yet present.
+
+\subsection{8 November 2026 --- January source data acquired}
+\textbf{Changes:} The developer downloaded the January 2024 yellow taxi Parquet
+file, the taxi zone lookup CSV, and the TLC yellow trip-record data dictionary
+PDF into \texttt{data/raw/}. The data directory is ignored by Git.
+
+\textbf{Findings:} The January Parquet file is approximately 48 MiB and contains
+2,964,624 rows across 19 columns. The zone lookup has columns
+\texttt{LocationID}, \texttt{Borough}, \texttt{Zone}, and
+\texttt{service\_zone}. The source Parquet and lookup file were retained
+unchanged.
+
+\subsection{8 November 2026 --- January data exploration (Milestone 1.3)}
+\textbf{Changes:} Added the read-only PySpark profile
+\texttt{notebooks/01\_data\_exploration.py}. Recorded its findings in
+\texttt{docs/journal.md} and provisional data-handling decisions in
+\texttt{docs/decisions.md}; updated \texttt{ROADMAP.md}. These changes were
+committed as \texttt{94e19f2}
+(\texttt{feat: add January data exploration milestone}).
+
+\textbf{Findings:}
+\begin{itemize}
+  \item The Parquet schema contains pickup and drop-off timestamps, location and
+        vendor identifiers, passenger and payment fields, and trip/fare measures.
+  \item There are 18 pickup timestamps outside January 2024: 15 before
+        January 1 (including dates in 2002 and 2009), and 3 on February 1.
+  \item There are 140,162 rows with \texttt{payment\_type=0}. Those same rows
+        contain nulls in \texttt{passenger\_count}, \texttt{RatecodeID},
+        \texttt{store\_and\_fwd\_flag}, \texttt{congestion\_surcharge}, and
+        \texttt{Airport\_fee}. No other source columns had nulls.
+  \item There are 870 nonpositive-duration trips, 60,371 zero-distance trips,
+        and no negative distances.
+  \item There are 37,448 negative fares and 35,504 negative total amounts.
+  \item The median and 99th-percentile trip distances are 1.68 and 20.0. The
+        maximum is 312,722.3; 23 trips exceed 1,000 distance units.
+  \item There are no exact duplicate full rows. Each of the 265 distinct zone
+        lookup IDs matches the trip data's pickup and drop-off location IDs.
+\end{itemize}
+
+\textbf{Interpretation:} These are profiling signals, not approved cleaning
+rules. In particular, negative amounts may need interpretation as adjustments
+or refunds; nulls are not to be imputed without evidence; unusual distances and
+boundary dates are not to be removed using arbitrary thresholds. The TLC data
+dictionary and reporting scope still need to inform those decisions.
+
+\textbf{Verification:} The saved exploration script compiled and ran with the
+project virtual environment and local PySpark 3.5.3. It reproduced the row
+count, quality signals, zero exact duplicates, and zero unmatched zone IDs.
+The profile only reads from \texttt{data/raw/} and does not write to it.
+
+\section{Current status and next authorized step}
+Milestones 1.1 (environment, as reported), 1.2 (download one month of source
+data), and 1.3 (explore the data) were recorded as complete at the preceding
+update. At that time, milestone 2.1 had not started. The later Bronze progress
+entry below supersedes that status: milestone 2.1 is now complete. Silver
+milestone 2.2 is the proposed next milestone and has not started. Continue
+implementation only after the developer explicitly asks to proceed.
+
+\section{Update convention}
+Append a dated subsection after each authorized work session. Include:
+\begin{enumerate}
+  \item the milestone or task;
+  \item files or behavior changed;
+  \item observations, results, or issues found;
+  \item verification performed and its outcome; and
+  \item any decisions deferred to the developer.
+\end{enumerate}
+Do not silently rewrite earlier findings; add a dated correction if new
+evidence changes them.
+
+\section{8 November 2026 --- Bronze ingestion (Milestone 2.1)}
+\textbf{Changes:} Added \texttt{spark/config.py} for data paths based on
+\texttt{BDM\_DATA\_ROOT}, \texttt{spark/session.py} for the shared local Spark
+configuration, and \texttt{spark/ingestion.py} for monthly raw-to-Bronze
+Parquet ingestion. Added a session-scoped Spark fixture and five ingestion
+tests; declared pytest in \texttt{requirements.txt}. Updated the roadmap,
+journal, and decisions log. The raw input files and the existing progress
+entries were not rewritten.
+
+\textbf{Findings:} The January source schema matched the exploration baseline.
+The source and Bronze row counts were both 2,964,624. The month partition
+\texttt{source\_month=2024-01} contains three Parquet part files, and all 18
+pickup timestamps outside January remain in Bronze. The original 19 columns
+are preserved, followed by only \texttt{ingestion\_ts},
+\texttt{source\_file}, and \texttt{source\_month}.
+
+\textbf{Verification:} \texttt{.venv/bin/python -m pytest -q} completed with
+\texttt{5 passed}. The command
+\texttt{.venv/bin/python -m spark.ingestion --year 2024 --month 1} was run twice;
+both runs logged source and Bronze counts of 2,964,624 and passed row-count
+verification. A separate Spark check confirmed that source and Bronze each
+contain 18 out-of-month pickup timestamps. The raw Parquet and zone CSV sizes
+and modification times match the values recorded before ingestion.
+
+\textbf{Decisions and deferred work:} Bronze derives its partition month from
+the source file, partitions by \texttt{source\_month}, preserves source names
+and types, and uses dynamic partition overwrite for safe reruns. Schema
+differences are logged rather than treated as automatic failures. No cleaning
+rules were applied; decisions about negative amounts, payment type 0,
+out-of-range dates, and extreme distances remain for Silver. Silver and later
+milestones have not been started.
+
+\end{document}
