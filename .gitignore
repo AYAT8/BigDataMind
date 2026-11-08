@@ -1,0 +1,10 @@
+.venv/
+__pycache__/
+.ipynb_checkpoints/
+.env
+data
+spark-warehouse/
+metastore_db/
+derby.log
+*.parquet
+.vscode/
