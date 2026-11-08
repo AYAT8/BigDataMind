@@ -93,27 +93,7 @@ project virtual environment and local PySpark 3.5.3. It reproduced the row
 count, quality signals, zero exact duplicates, and zero unmatched zone IDs.
 The profile only reads from \texttt{data/raw/} and does not write to it.
 
-\section{Current status and next authorized step}
-Milestones 1.1 (environment, as reported), 1.2 (download one month of source
-data), and 1.3 (explore the data) were recorded as complete at the preceding
-update. At that time, milestone 2.1 had not started. The later Bronze progress
-entry below supersedes that status: milestone 2.1 is now complete. Silver
-milestone 2.2 is the proposed next milestone and has not started. Continue
-implementation only after the developer explicitly asks to proceed.
-
-\section{Update convention}
-Append a dated subsection after each authorized work session. Include:
-\begin{enumerate}
-  \item the milestone or task;
-  \item files or behavior changed;
-  \item observations, results, or issues found;
-  \item verification performed and its outcome; and
-  \item any decisions deferred to the developer.
-\end{enumerate}
-Do not silently rewrite earlier findings; add a dated correction if new
-evidence changes them.
-
-\section{8 November 2026 --- Bronze ingestion (Milestone 2.1)}
+\subsection{8 November 2026 --- Bronze ingestion (Milestone 2.1)}
 \textbf{Changes:} Added \texttt{spark/config.py} for data paths based on
 \texttt{BDM\_DATA\_ROOT}, \texttt{spark/session.py} for the shared local Spark
 configuration, and \texttt{spark/ingestion.py} for monthly raw-to-Bronze
@@ -144,5 +124,197 @@ differences are logged rather than treated as automatic failures. No cleaning
 rules were applied; decisions about negative amounts, payment type 0,
 out-of-range dates, and extreme distances remain for Silver. Silver and later
 milestones have not been started.
+
+\subsection{8 November 2026 --- Silver cleaning and quarantine (Milestone 2.2)}
+\textbf{Changes:} Added the configurable \texttt{CleaningThresholds} and
+Silver/rejected/report paths in \texttt{spark/config.py}; enabled Delta Lake in
+\texttt{spark/session.py}; implemented standardization, derivation, all-rule
+reason arrays, passenger count handling, zone enrichment, quality reporting,
+Delta month replacement, reconciliation, and the CLI in
+\texttt{spark/cleaning.py}. Added 18 Silver-focused tests and a Delta-enabled
+shared fixture. Pinned \texttt{delta-spark==3.3.2} alongside PySpark 3.5.3.
+Documented the schema in \texttt{docs/silver\_schema.md}, updated roadmap,
+journal and decisions, and expanded this progress log.
+
+\textbf{Why these choices matter:}
+\begin{itemize}
+  \item \textbf{Quarantine instead of deletion:} every rejected source row is
+        retained in a separate table with all applicable reasons. This makes
+        cleaning auditable and allows rules to be reviewed without losing data.
+  \item \textbf{Month-constrained \texttt{replaceWhere}:} a rerun replaces only
+        the selected Delta partition, rather than appending duplicates or
+        rewriting unrelated months.
+  \item \textbf{Reconciliation:} the invariant
+        \texttt{bronze = silver + rejected + duplicates\_removed} proves that
+        every input row is accounted for, including exact duplicates removed
+        from the valid set.
+  \item \textbf{Central thresholds:} speed, distance, duration and passenger
+        limits live in one dataclass so they can be reviewed and varied
+        consistently; alternative thresholds are reported rather than silently
+        substituted.
+\end{itemize}
+
+\textbf{Data dictionary finding:} The local TLC dictionary,
+\texttt{data/raw/data\_dictionary\_trip\_records\_yellow.pdf}, dated
+18 March 2025, defines payment code 0 as \textbf{Flex Fare}. Codes 1 through 6
+mean Credit card, Cash, No charge, Dispute, Unknown, and Voided trip. The
+January 2024 file contains codes 0 through 4. Silver labels these codes;
+the original nulls on Flex Fare records remain null.
+
+\textbf{Cleaning rules applied:}
+\begin{itemize}
+  \item Pickup outside the source file month is rejected as
+        \texttt{OUT\_OF\_SOURCE\_MONTH}; the file month, not pickup date,
+        remains the partition key.
+  \item Negative fare or total is rejected as \texttt{NEGATIVE\_AMOUNT};
+        distance at or below zero as \texttt{ZERO\_DISTANCE}; and drop-off at
+        or before pickup as \texttt{NON\_POSITIVE\_DURATION}.
+  \item Average speed above 100 mph is rejected as
+        \texttt{IMPLAUSIBLE\_SPEED}; distance above 500 miles as
+        \texttt{IMPLAUSIBLE\_DISTANCE}.
+  \item Duration above 1,440 minutes is rejected as \texttt{LONG\_DURATION}.
+        This rule is provisional pending review of the duration distribution.
+  \item Passenger counts of zero or greater than six are set to null without
+        rejecting the trip. Existing nulls are not imputed.
+\end{itemize}
+
+\textbf{January 2024 output counts:}
+\begin{center}
+\begin{tabular}{lr}
+\hline
+Measure & Rows \\
+\hline
+Bronze input & 2,964,624 \\
+Silver valid & 2,868,951 \\
+Quarantined (distinct rows) & 95,673 \\
+Exact duplicates removed from valid rows & 0 \\
+Reconciliation total & 2,964,624 \\
+Flex Fare rows retained in Silver & 115,175 \\
+Quality report rows & 21 \\
+\hline
+\end{tabular}
+\end{center}
+The invariant is satisfied:
+\texttt{2,964,624 = 2,868,951 + 95,673 + 0}. Per-rule counts below overlap
+because a row may carry several rejection reasons.
+
+\textbf{Per-rule counts:}
+\begin{center}
+\begin{tabular}{lr}
+\hline
+Rule / action & Affected rows \\
+\hline
+\texttt{OUT\_OF\_SOURCE\_MONTH} & 18 \\
+\texttt{NEGATIVE\_AMOUNT} & 37,568 \\
+\texttt{ZERO\_DISTANCE} & 60,371 \\
+\texttt{NON\_POSITIVE\_DURATION} & 870 \\
+\texttt{IMPLAUSIBLE\_SPEED} (over 100 mph) & 1,024 \\
+\texttt{IMPLAUSIBLE\_DISTANCE} (over 500 miles) & 25 \\
+\texttt{LONG\_DURATION} (over 1,440 minutes) & 16 \\
+Passenger counts set to null (not rejected) & 31,525 \\
+\hline
+\end{tabular}
+\end{center}
+
+\textbf{Threshold sensitivity:}
+\begin{center}
+\begin{tabular}{lrrr}
+\hline
+Threshold type & Lower threshold & Active threshold & Higher threshold \\
+\hline
+Average speed (mph) & 80: 1,107 & 100: 1,024 & 120: 973 \\
+Trip distance (miles) & 100: 59 & 200: 31 & 500: 25 \\
+\hline
+\end{tabular}
+\end{center}
+
+\textbf{Duration distribution:}
+\begin{center}
+\begin{tabular}{lr}
+\hline
+Percentile & Minutes \\
+\hline
+p50 & 11.63 \\
+p90 & 28.88 \\
+p95 & 37.93 \\
+p99 & 60.40 \\
+p99.9 & 115.15 \\
+\hline
+\end{tabular}
+\end{center}
+The maximum-duration rejection remains a provisional 24-hour limit; these
+percentiles are available for the developer to review.
+
+\textbf{Ten quarantined examples:}
+\begingroup
+\small
+\begin{longtable}{p{3.0cm}rrp{6.5cm}}
+\hline
+Pickup & Distance & Fare & Rejection reason(s) \\
+\hline
+2002-12-31 22:59 & 0.63 & -6.50 & \texttt{OUT\_OF\_SOURCE\_MONTH}, \texttt{NEGATIVE\_AMOUNT} \\
+2002-12-31 22:59 & 0.63 & 6.50 & \texttt{OUT\_OF\_SOURCE\_MONTH} \\
+2009-01-01 00:24 & 10.88 & 50.60 & \texttt{OUT\_OF\_SOURCE\_MONTH} \\
+2009-01-01 23:30 & 10.99 & 45.00 & \texttt{OUT\_OF\_SOURCE\_MONTH} \\
+2009-01-01 23:58 & 0.46 & 4.40 & \texttt{OUT\_OF\_SOURCE\_MONTH} \\
+2023-12-31 23:39 & 0.47 & 5.10 & \texttt{OUT\_OF\_SOURCE\_MONTH} \\
+2023-12-31 23:41 & 0.40 & 7.20 & \texttt{OUT\_OF\_SOURCE\_MONTH} \\
+2023-12-31 23:47 & 1.44 & 10.70 & \texttt{OUT\_OF\_SOURCE\_MONTH} \\
+2023-12-31 23:49 & 3.14 & 17.00 & \texttt{OUT\_OF\_SOURCE\_MONTH} \\
+2023-12-31 23:54 & 7.70 & 33.10 & \texttt{OUT\_OF\_SOURCE\_MONTH} \\
+\hline
+\end{longtable}
+\endgroup
+
+\textbf{Verification:}
+\begin{itemize}
+  \item \texttt{.venv/bin/python -m pytest -q}: \texttt{23 passed}.
+  \item \texttt{.venv/bin/python -m spark.cleaning --year 2024 --month 1}
+        was run twice. Both runs reported Bronze 2,964,624, Silver 2,868,951,
+        rejected 95,673, and duplicates removed 0.
+  \item An independent SQL query against the persisted Silver Delta table
+        returned zero rows for null keys, month mismatches, invalid durations,
+        negative amounts, nonpositive distances, speeds above 100 mph,
+        distances above 500 miles, durations above 1,440 minutes, and exact
+        duplicates.
+  \item The same SQL query found 115,175 code-0 rows in Silver; all retained
+        code-0 rows preserve null values for passenger count, rate code,
+        store-and-forward flag, congestion surcharge, and airport fee.
+        Of 140,162 code-0 Bronze rows, 24,987 were quarantined for other
+        explicit rules, not for the payment code or its null fields. Among
+        these rows, overlapping reasons were zero distance 22,825, negative
+        amount 2,066, nonpositive duration 111, speed over 100 mph 64, and
+        distance over 500 miles 20.
+  \item The Silver Delta history shows two overwrite operations, versions 0
+        and 1, each constrained by
+        \texttt{source\_month = '2024-01'}.
+  \item Raw Parquet, zone CSV, data-dictionary PDF, and Bronze part files
+        retained their pre-cleaning sizes and modification times. Raw and
+        Bronze were not modified.
+\end{itemize}
+
+\textbf{Deferred review:} The selected 100 mph and 500-mile limits have
+alternative-threshold counts in the quality report. The 1,440-minute duration
+limit is explicitly provisional. Review these thresholds before generalizing
+them to additional months. Gold, Airflow, and later milestones have not started.
+
+\section{Current status and next authorized step}
+Milestones 1.1 (environment, as reported), 1.2 (download one month of source
+data), 1.3 (explore the data), 2.1 (Bronze), and 2.2 (Silver) are complete.
+Milestone 2.3 (Gold) is proposed next and has not started. The provisional
+duration limit and the sensitivity results remain available for review.
+Continue implementation only after the developer explicitly asks to proceed.
+
+\section{Update convention}
+Append a dated subsection after each authorized work session. Include:
+\begin{enumerate}
+  \item the milestone or task;
+  \item files or behavior changed;
+  \item observations, results, or issues found;
+  \item verification performed and its outcome; and
+  \item any decisions deferred to the developer.
+\end{enumerate}
+Do not silently rewrite earlier findings; add a dated correction if new
+evidence changes them.
 
 \end{document}

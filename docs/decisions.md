@@ -31,3 +31,43 @@
   differences; do not fail ingestion solely because the TLC source schema changes.
 - Keep cleaning and quality decisions in Silver; Bronze is a traceable copy of the
   raw rows, not a validation or repair layer.
+
+## 2026-11-08 — Silver cleaning and quarantine decisions (D1–D9)
+
+The TLC Yellow Taxi data dictionary in
+`data/raw/data_dictionary_trip_records_yellow.pdf` (dated 18 March 2025) was
+checked before payment codes were labeled. It defines payment code 0 as Flex Fare,
+1 as Credit card, 2 as Cash, 3 as No charge, 4 as Dispute, 5 as Unknown, and 6 as
+Voided trip. The January 2024 file contains codes 0 through 4.
+
+1. **D1 — Source-month boundary:** Compare pickup year-month with `source_month`,
+   which comes from the source file. Route mismatches to the rejected table.
+2. **D2 — Flex Fare and nulls:** Keep `payment_type=0` rows unless another explicit
+   rejection rule applies. Preserve the source nulls without imputation and label
+   code 0 as Flex Fare from the data dictionary.
+3. **D3 — Negative amounts:** Quarantine a row when `fare_amount < 0` or
+   `total_amount < 0`, with reason `NEGATIVE_AMOUNT`.
+4. **D4 — Zero distance and duration:** Quarantine `trip_distance <= 0` as
+   `ZERO_DISTANCE`, and `dropoff_datetime <= pickup_datetime` as
+   `NON_POSITIVE_DURATION`.
+5. **D5 — Implausible speed/distance:** Quarantine average speed above 100 mph as
+   `IMPLAUSIBLE_SPEED`, or distance above 500 miles as `IMPLAUSIBLE_DISTANCE`.
+   Thresholds are centralized in `CleaningThresholds`. Report sensitivity counts
+   for speeds above 80/100/120 mph and distances above 100/200/500 miles.
+6. **D6 — Long duration:** Quarantine trips over 1,440 minutes with
+   `LONG_DURATION`. This remains provisional; the recorded percentiles are available
+   for review before changing the limit.
+7. **D7 — Passenger count:** Keep a trip but set `passenger_count` to null when the
+   value is zero or greater than six. Do not impute existing nulls.
+8. **D8 — Multiple reasons and reconciliation:** Store every applicable reason in
+   `reject_reasons` as `array<string>`. Report per-rule counts (which may overlap)
+   and distinct rejected rows. Assert
+   `bronze_rows = silver_rows + rejected_rows + duplicates_removed`.
+9. **D9 — Delta storage and reruns:** Store Silver, rejected rows, and the quality
+   report as Delta tables partitioned by `source_month`; use a month-constrained
+   `replaceWhere` overwrite for reruns.
+
+Delta Lake 3.3.2 was selected for PySpark 3.5.3 using the official
+[Delta/Spark compatibility table](https://docs.delta.io/releases/#compatibility-with-apache-spark-and-unity-catalog).
+Schema meanings and payment labels were checked against the TLC PDF, not inferred
+from observed distributions.
