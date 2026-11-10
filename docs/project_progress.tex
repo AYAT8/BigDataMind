@@ -8,7 +8,7 @@
 
 \title{BigDataMind Project Progress Log}
 \author{Project journal}
-\date{Last updated: 8 November 2026}
+\date{Last updated: 10 November 2026}
 
 \begin{document}
 \maketitle
@@ -298,12 +298,87 @@ alternative-threshold counts in the quality report. The 1,440-minute duration
 limit is explicitly provisional. Review these thresholds before generalizing
 them to additional months. Gold, Airflow, and later milestones have not started.
 
+\subsection{10 November 2026 --- Gold aggregations (Milestone 2.3)}
+\textbf{Reported status:} Inspection confirmed that the six Gold tables,
+\texttt{spark/aggregations.py}, \texttt{spark/gold\_catalog.py}, and generated
+catalog documentation already existed. Gold tests were missing, while the
+roadmap and this log still said the milestone had not started.
+
+\textbf{Changes:} Added nine tests using a small hand-computed Silver-shaped
+DataFrame: hourly and daily sums, Unknown zone retention, average daily demand
+and tied ranks, payment shares, distance boundaries, catalog schemas,
+idempotent Delta overwrite, and quality failures for injected duplicate and
+null keys. Corrected the TLC revenue caveat and the average-speed description
+in the catalog, then regenerated \texttt{docs/data\_dictionary.md} and
+\texttt{docs/gold\_catalog.json}. Updated the roadmap, journal, decisions, and
+this progress log.
+
+\textbf{Why these choices matter:}
+\begin{itemize}
+  \item \textbf{Catalog-driven schema:} one pure-Python definition supplies the
+        Spark schema contract and human/machine-readable documentation, reducing
+        the risk that a future SQL context or the docs describe different data.
+  \item \textbf{Keep Unknown zones and rank ties:} retaining unmatched zones
+        preserves valid trip volume; dense ranks avoid hiding equally busy
+        weekday-hour slots.
+  \item \textbf{Average per operating day:} normalizing weekday-hour totals by
+        the distinct dates for that weekday avoids treating a weekday with more
+        observations as intrinsically busier.
+  \item \textbf{Idempotent overwrite and reconciliation:} reruns replace the
+        same output, while row and revenue checks expose omissions or accidental
+        double counting.
+\end{itemize}
+
+\textbf{January 2024 Gold table counts:}
+\begin{center}
+\begin{tabular}{lr}
+\hline
+Table & Rows \\
+\hline
+\texttt{gold\_hourly\_demand} & 744 \\
+\texttt{gold\_daily\_demand} & 31 \\
+\texttt{gold\_revenue\_by\_zone} & 257 \\
+\texttt{gold\_peak\_hours} & 168 \\
+\texttt{gold\_payment\_mix} & 5 \\
+\texttt{gold\_distance\_duration\_stats} & 6 \\
+\hline
+\end{tabular}
+\end{center}
+Each table's trip sum differs from the 2,868,951 Silver rows by zero. Gold
+revenue minus Silver \texttt{SUM(total\_amount)} was
+\texttt{-0.0000049323} hourly, \texttt{-0.0000045151} daily,
+\texttt{-0.0000059903} by zone, and \texttt{-0.0000051558} by payment type.
+These small floating-point aggregation differences are within the existing
+quality tolerance; the two rebuilds returned identical row counts.
+
+\textbf{Independent Spark SQL checks:}
+\begin{itemize}
+  \item Busiest hours were 18, 17, and 16, with 206,216, 200,201, and 184,896
+        trips respectively; Gold matched Silver for each hour.
+  \item The top five pickup zones by revenue (JFK Airport, LaGuardia Airport,
+        Midtown Center, Upper East Side South, and Times Sq/Theatre District)
+        matched Silver revenues exactly.
+  \item All five payment type counts matched Silver. Credit card had
+        2,297,857 trips and an 80.09\% share.
+  \item For 15 January, Gold and Silver both had 74,763 trips and
+        \$2,140,560.15 total revenue.
+\end{itemize}
+
+\textbf{Verification:} The complete suite at the Gold stage reported
+\texttt{32 passed}. \texttt{python -m spark.aggregations} completed twice with
+quality validation and identical counts. The raw source, Bronze, and Silver
+file sizes and modification times were unchanged by the Gold rebuilds.
+
+\textbf{Deferred decisions:} Silver cleaning thresholds remain unchanged.
+Milestone 2.4 (Airflow) remains unstarted; the developer should confirm
+sequencing before it is deferred in favor of Text-to-SQL.
+
 \section{Current status and next authorized step}
-Milestones 1.1 (environment, as reported), 1.2 (download one month of source
-data), 1.3 (explore the data), 2.1 (Bronze), and 2.2 (Silver) are complete.
-Milestone 2.3 (Gold) is proposed next and has not started. The provisional
-duration limit and the sensitivity results remain available for review.
-Continue implementation only after the developer explicitly asks to proceed.
+Milestones 1.1 (environment, as reported), 1.2 (source data), 1.3
+(exploration), 2.1 (Bronze), 2.2 (Silver), and 2.3 (Gold) are complete.
+Milestone 2.4 (Airflow) remains unstarted. The developer authorized milestone
+3.1 (provider-agnostic LLM client) as the next task. The provisional Silver
+duration limit and sensitivity results remain available for review.
 
 \section{Update convention}
 Append a dated subsection after each authorized work session. Include:

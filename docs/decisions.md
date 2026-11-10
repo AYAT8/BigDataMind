@@ -71,3 +71,22 @@ Delta Lake 3.3.2 was selected for PySpark 3.5.3 using the official
 [Delta/Spark compatibility table](https://docs.delta.io/releases/#compatibility-with-apache-spark-and-unity-catalog).
 Schema meanings and payment labels were checked against the TLC PDF, not inferred
 from observed distributions.
+
+## 2026-11-10 — Gold aggregation conventions
+
+- Build all six Gold outputs from valid Silver rows; keep calculations in Spark
+  and preserve one row per catalog grain.
+- Retain unmatched pickup zones as `Unknown` instead of dropping trip volume.
+- Preserve Spark's weekday numbering in Gold: 1 = Sunday and 7 = Saturday.
+  Peak-hour averages divide the slot's trips by distinct operating dates for
+  that weekday, and dense ranking preserves ties.
+- Distance buckets are lower-bound inclusive and upper-bound exclusive:
+  `0-1`, `1-3`, `3-5`, `5-10`, `10-20`, and `20+`. Values exactly at 1, 3, 5,
+  10, and 20 enter the bucket beginning at that boundary.
+- `total_amount` is the total charged to the passenger as reported by TLC;
+  cash tips are not included. Average speed is computed per trip and then
+  averaged within each distance bucket; trips without valid duration do not
+  contribute to speed.
+- Validate table schema and grain, exact trip reconciliation, revenue
+  reconciliation within floating-point tolerance, payment shares, and dense
+  peak ranks before considering a full Gold build complete.

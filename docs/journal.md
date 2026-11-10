@@ -101,3 +101,32 @@ the source data.
 - Raw files and Bronze Parquet part files retained their pre-cleaning sizes and
   modification times. Silver is documented in `docs/silver_schema.md`; raw and
   Bronze were not modified.
+
+## Milestone 2.3 — Gold aggregations
+
+- Confirmed that the six Gold tables, their builders, and the generated catalog
+  already existed, but there were no Gold tests and the progress documents still
+  marked this milestone as not started.
+- Added nine focused Gold tests using a tiny hand-computed Silver-shaped
+  DataFrame. Coverage includes hourly/daily sums, Unknown zone retention,
+  average demand per operating day and peak ties, payment shares, the exact
+  distance boundaries, catalog schemas, idempotent Delta overwrite, and
+  rejection of injected null-key/duplicate-grain violations.
+- Corrected the revenue caveat to describe `total_amount` as the amount charged
+  to the passenger as reported by TLC (cash tips excluded), and clarified how
+  bucket-level average speed is computed. Regenerated the Markdown and JSON
+  catalog documents from `spark/gold_catalog.py`.
+- Two complete rebuilds produced the same table sizes: hourly demand 744,
+  daily demand 31, revenue by zone 257, peak hours 168, payment mix 5, and
+  distance/duration statistics 6.
+- All six `SUM(trips)` values reconciled exactly to the 2,868,951 Silver rows.
+  Revenue differences (Gold minus Silver) were -0.0000049323 hourly,
+  -0.0000045151 daily, -0.0000059903 by zone, and -0.0000051558 by payment
+  type. These are small floating-point aggregation differences; all were
+  within the existing quality-check tolerance.
+- Four independent Spark SQL comparisons passed: busiest hourly demand matched
+  Silver at hours 18/17/16 (206,216/200,201/184,896 trips); each of the top
+  five zone revenues matched Silver with zero difference; all five payment
+  type counts matched Silver (credit card 2,297,857; share 80.09%); and
+  January 15 matched at 74,763 trips and $2,140,560.15 revenue.
+- Raw files, Bronze, and Silver were not modified by the Gold rebuilds.

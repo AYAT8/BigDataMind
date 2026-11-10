@@ -158,7 +158,7 @@ GOLD_TABLES: tuple[GoldTable, ...] = (
         caveats=(
             "Unmatched pickup zones stay in Gold as Unknown to preserve the full valid trip volume.",
             "This table aggregates by pickup zone only; drop-off zone is not used here.",
-            "Cash tips are not included because total_amount is the reported prepaid revenue total.",
+            "total_amount is the total charged to the passenger as reported by TLC; cash tips are not included.",
         ),
     ),
     GoldTable(
@@ -246,7 +246,7 @@ GOLD_TABLES: tuple[GoldTable, ...] = (
             GoldColumn(
                 "avg_speed_mph",
                 "double",
-                "Average avg_speed_mph for trips in the bucket; null durations are excluded.",
+                "Average speed in miles per hour computed per trip, averaged over the trips in the bucket; trips without a valid duration are excluded",
             ),
         ),
         example_questions_en=(
@@ -333,7 +333,7 @@ def write_data_dictionary(output_path: Path | None = None) -> Path:
             sections.append(f"- {caveat}")
         sections.append("")
 
-    target.write_text("\n".join(sections) + "\n", encoding="utf-8")
+    target.write_text("\n".join(sections).rstrip() + "\n", encoding="utf-8")
     return target
 
 

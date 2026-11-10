@@ -111,7 +111,7 @@ This document is generated from the catalog defined in `spark/gold_catalog.py`.
 
 - Unmatched pickup zones stay in Gold as Unknown to preserve the full valid trip volume.
 - This table aggregates by pickup zone only; drop-off zone is not used here.
-- Cash tips are not included because total_amount is the reported prepaid revenue total.
+- total_amount is the total charged to the passenger as reported by TLC; cash tips are not included.
 
 ## gold_peak_hours
 
@@ -195,7 +195,7 @@ This document is generated from the catalog defined in `spark/gold_catalog.py`.
 | `trips` | `bigint` | Trips in the distance bucket. |
 | `avg_duration_min` | `double` | Average trip_duration_min for trips in the bucket. |
 | `avg_fare` | `double` | Average fare_amount for trips in the bucket. |
-| `avg_speed_mph` | `double` | Average avg_speed_mph for trips in the bucket; null durations are excluded. |
+| `avg_speed_mph` | `double` | Average speed in miles per hour computed per trip, averaged over the trips in the bucket; trips without a valid duration are excluded |
 
 ### Example questions (English)
 
