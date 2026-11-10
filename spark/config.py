@@ -19,6 +19,13 @@ SILVER_REJECTED = SILVER_DIR / "yellow_trips_rejected"
 QUALITY_REPORT = SILVER_DIR / "quality_report"
 
 
+def gold_path(table_name: str) -> Path:
+    """Return the Delta path for one Gold table under the project data root."""
+    if not table_name or not table_name.strip():
+        raise ValueError("table_name must be a non-empty string")
+    return GOLD_DIR / table_name.strip()
+
+
 @dataclass(frozen=True)
 class CleaningThresholds:
     """Silver-layer limits, centralized for review and sensitivity analysis."""
