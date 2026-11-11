@@ -6,3 +6,5 @@ pyarrow==17.0.0
 jupyterlab
 matplotlib
 pytest
+requests
+python-dotenv

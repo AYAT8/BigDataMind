@@ -11,7 +11,7 @@ Milestones are completed in order and committed individually.
 | 2.2 | Silver cleaning, rules, quarantine, and tests | Done |
 | 2.3 | Gold aggregations (six tables) | Done |
 | 2.4 | Airflow orchestration and quality gate | Not started |
-| 3.1 | LLM client and Ollama | Not started |
+| 3.1 | LLM client and Ollama | Done |
 | 3.2 | Text-to-SQL, SQL validation, and attack tests | Not started |
 | 3.3 | Insight generation | Not started |
 | 4 | RAG over the data dictionary | Not started |

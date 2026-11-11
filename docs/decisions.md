@@ -90,3 +90,28 @@ from observed distributions.
 - Validate table schema and grain, exact trip reconciliation, revenue
   reconciliation within floating-point tolerance, payment shares, and dense
   peak ranks before considering a full Gold build complete.
+
+## 2026-11-10 — Provider-agnostic LLM client (L1–L6)
+
+- Use one abstract `LLMClient` with two small HTTP adapters: Ollama's native
+  `/api/chat` endpoint and an OpenAI-compatible `/chat/completions` endpoint.
+  This adapter pattern keeps comparison/application code independent of
+  provider-specific request and response shapes, without a vendor SDK.
+- Return `LLMResult` rather than a bare string so provider, model, latency,
+  prompt/completion token counts, and finish reason travel with generated text.
+- Default generation temperature to zero for repeatable SQL-generation output.
+- Set Ollama `num_ctx` explicitly (default 4096) because the default context
+  can silently truncate long schema-plus-question prompts. Keep-alive is
+  configurable and defaults to five minutes.
+- Use 120-second local CPU and 60-second hosted timeouts. Retry at most twice
+  (three attempts total) with exponential backoff only for connection errors,
+  timeouts, HTTP 429, and HTTP 5xx. Do not retry authentication failures or
+  malformed responses.
+- Store no credentials in profile JSON. Read hosted endpoint, model, and API
+  key from `BDM_HOSTED_BASE_URL`, `BDM_HOSTED_MODEL`, and
+  `BDM_HOSTED_API_KEY` in the ignored `.env` or process environment. Never log
+  prompts, keys, or provider response bodies.
+- Build schema context from `spark.gold_catalog` rather than maintaining a
+  second schema definition. The 10-question comparison records raw responses,
+  latency and available token counts without grading SQL; SQL correctness and
+  validation are reserved for milestone 3.2.

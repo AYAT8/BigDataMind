@@ -130,3 +130,29 @@ the source data.
   type counts matched Silver (credit card 2,297,857; share 80.09%); and
   January 15 matched at 74,763 trips and $2,140,560.15 revenue.
 - Raw files, Bronze, and Silver were not modified by the Gold rebuilds.
+
+## Milestone 3.1 — Provider-agnostic LLM client and smoke comparison
+
+- Added the abstract `LLMClient` contract, `LLMResult`, and native Ollama and
+  OpenAI-compatible HTTP adapters. Added environment-backed settings,
+  secret-free JSON profiles, and a compact prompt schema rendered from the
+  canonical Gold catalog.
+- Added the ten-question English/French smoke comparison and local Markdown/CSV
+  reports. It records provider output and usage for manual review only; it does
+  not validate or grade SQL, which is deferred to milestone 3.2.
+- Added a standard-library HTTP stub test fixture. It covers both client
+  protocols, token parsing, retryable 500/429 responses, timeout, auth failure,
+  malformed JSON, unreachable Ollama, context/temperature/keep-alive options,
+  settings/profile loading, secret redaction, and one profile failing without
+  stopping another.
+- The final test run reported `44 passed, 1 skipped`; the skipped test is the
+  opt-in live Ollama test. The complete comparison ran but skipped local Ollama
+  because `http://localhost:11434` was unreachable, and skipped hosted because
+  its three required `BDM_HOSTED_*` values were not configured.
+- The generated reports are
+  `docs/benchmarks/llm_comparison_20261110T234320Z.md` and
+  `docs/benchmarks/llm_comparison_20261110T234320Z.csv`. They contain skip
+  reasons and empty manual-grade cells; benchmark outputs are ignored by Git.
+- No Ollama service or model was installed or downloaded. `.env` is ignored;
+  no hosted key was configured. The stub test confirmed a test API key is
+  absent from logged output and exception text.

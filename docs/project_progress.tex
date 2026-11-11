@@ -373,12 +373,67 @@ file sizes and modification times were unchanged by the Gold rebuilds.
 Milestone 2.4 (Airflow) remains unstarted; the developer should confirm
 sequencing before it is deferred in favor of Text-to-SQL.
 
+\subsection{10 November 2026 --- Provider-agnostic LLM client (Milestone 3.1)}
+\textbf{Changes:} Added \texttt{llm/settings.py} for environment and
+\texttt{.env} configuration; \texttt{llm/llm\_client.py} with a shared
+\texttt{LLMClient}, result dataclass, native Ollama adapter, and
+OpenAI-compatible adapter; secret-free \texttt{llm/model\_profiles.json};
+catalog-derived prompt context; and the ten-question comparison CLI. Added
+stub-server tests, a registered opt-in live-test marker, dependencies, and
+\texttt{.env.example}. Added the README setup instructions and updated roadmap,
+journal, decisions, and this log.
+
+\textbf{Why these choices matter:}
+\begin{itemize}
+  \item \textbf{Adapter pattern:} one generation interface lets application
+        code switch between local and hosted services without adopting a
+        vendor-specific SDK.
+  \item \textbf{Bounded, selective retries:} network failures, timeouts, HTTP
+        429 and 5xx can be transient. Authentication failures and malformed
+        responses are not transient, so retrying them wastes time and can
+        obscure configuration or contract errors.
+  \item \textbf{Temperature zero:} reduces variation for SQL-oriented prompts;
+        this is not a substitute for the validator planned in 3.2.
+  \item \textbf{Explicit \texttt{num\_ctx}:} Ollama's implicit context can be
+        too small and silently truncate the supplied schema. The configured
+        4096-token context makes that limit visible and adjustable.
+  \item \textbf{Secret boundaries:} profile JSON contains environment-variable
+        names only; keys are loaded from ignored \texttt{.env} or the process
+        environment and are excluded from logs and error text.
+  \item \textbf{No grading yet:} smoke reports make latency, token usage, and
+        raw outputs reviewable, while SQL correctness awaits a real validator
+        in milestone 3.2.
+\end{itemize}
+
+\textbf{Verification:} \texttt{python -m pytest -q} reported
+\texttt{44 passed, 1 skipped}; the skipped case is the opt-in live Ollama test.
+The offline stub tests cover success/token parsing for both clients, request
+options, retries, timeout, 401 without retry, malformed JSON, unreachable
+Ollama, settings/profiles, and secret redaction. \texttt{.env} is Git-ignored.
+The comparison command generated
+\texttt{docs/benchmarks/llm\_comparison\_20261110T234320Z.md} and
+\texttt{docs/benchmarks/llm\_comparison\_20261110T234320Z.csv}. Local Ollama was
+skipped because \texttt{localhost:11434} was unreachable; hosted was skipped
+because the three \texttt{BDM\_HOSTED\_*} variables were not set. No provider
+key was configured, and no secret appeared in the test log or error output.
+No Ollama service or model was installed or downloaded.
+
+\textbf{Deferred decisions:} The developer must configure and manually evaluate
+the desired hosted service and local model. Do not treat generated SQL as safe
+or correct; milestone 3.2 needs an agreed SQL dialect, allowed query scope,
+table/column policy, row/timeout limits, and error behavior before validator
+implementation.
+
 \section{Current status and next authorized step}
 Milestones 1.1 (environment, as reported), 1.2 (source data), 1.3
-(exploration), 2.1 (Bronze), 2.2 (Silver), and 2.3 (Gold) are complete.
-Milestone 2.4 (Airflow) remains unstarted. The developer authorized milestone
-3.1 (provider-agnostic LLM client) as the next task. The provisional Silver
-duration limit and sensitivity results remain available for review.
+(exploration), 2.1 (Bronze), 2.2 (Silver), 2.3 (Gold), and 3.1 (LLM client)
+are complete. Milestone 2.4 (Airflow) remains unstarted. The next proposed
+implementation is milestone 3.2: Text-to-SQL with a \texttt{sqlglot} validator.
+Before it starts, settle the SQL dialect, allowed tables/columns and joins,
+whether to cap result rows, execution timeout/resource limits, and the behavior
+for unsupported or unanswerable questions. Confirm whether milestone 2.4 should
+precede 3.2. The provisional Silver duration limit and sensitivity results
+remain available for review.
 
 \section{Update convention}
 Append a dated subsection after each authorized work session. Include:

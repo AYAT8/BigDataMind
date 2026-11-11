@@ -1,0 +1,15 @@
+[
+  {
+    "name": "local-3b",
+    "provider": "ollama",
+    "model": "qwen2.5-coder:3b",
+    "base_url": "http://localhost:11434"
+  },
+  {
+    "name": "hosted",
+    "provider": "openai_compatible",
+    "model_env": "BDM_HOSTED_MODEL",
+    "base_url_env": "BDM_HOSTED_BASE_URL",
+    "api_key_env": "BDM_HOSTED_API_KEY"
+  }
+]
